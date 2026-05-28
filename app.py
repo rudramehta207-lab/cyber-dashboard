@@ -184,13 +184,18 @@ def global_receive():
         
     tracking_id = request.form.get('tracking_id', '').upper()
     provided_password = request.form.get('password', '')
-    attempt_country = request.form.get('country', '').strip().lower() # Receiver input Node
+    attempt_country = request.form.get('country', '').strip().lower()
     
     if tracking_id not in global_vault_tracker:
         return jsonify({"error": "Invalid Tracking ID reference tag."}), 404
         
     record = global_vault_tracker[tracking_id]
-    expected_country = record["destination"].strip().lower() # Sender target Node
+    
+    # CRITICAL SECURITY CHECK: Remote Kill-Switch Validation
+    if record["status"] == "REVOKED / LOCKED BY SENDER":
+        return jsonify({"error": "🔒 ACCESS DENIED: This secure transmission package has been remotely terminated and locked by the sender."}), 403
+
+    expected_country = record["destination"].strip().lower()
     
     # TRIPWIRE 1: Passkey Verification Check
     if record["password"] != provided_password:
@@ -214,10 +219,33 @@ def global_receive():
         })
         return jsonify({"error": f"🔒 ROUTING ERROR: Secure deployment package is restricted. Access denied at this endpoint location."}), 403
 
-    # Success Path if both password and location match perfectly
+    # SNAPCHAT BURN POLICY: Switch status to delivered so it can never be pulled again
     record["status"] = "DELIVERED"
     file_stream = io.BytesIO(record["file_bytes"])
     return send_file(file_stream, as_attachment=True, download_name=record["filename"])
+
+@app.route('/api/lock-token/<tracking_id>', methods=['POST'])
+def lock_token(tracking_id):
+    if 'username' not in session:
+        return jsonify({"error": "Unauthorized"}), 403
+        
+    tracking_id = tracking_id.upper()
+    if tracking_id in global_vault_tracker:
+        # Check ownership validation ring
+        if global_vault_tracker[tracking_id]["sender_identity"] == session['username']:
+            global_vault_tracker[tracking_id]["status"] = "REVOKED / LOCKED BY SENDER"
+            
+            global incident_id_counter, incidents_log
+            incident_id_counter += 1
+            incidents_log.append({
+                "id": incident_id_counter,
+                "title": f"MANUAL REMOTE LOCK TRIGGERED",
+                "desc": f"Operator [{session['username']}] remotely revoked and destroyed access permissions for Token {tracking_id}.",
+                "type": "info"
+            })
+            return jsonify({"success": True, "message": "Payload securely locked down and revoked."})
+            
+    return jsonify({"success": False, "error": "Unauthorized or Token not found."}), 400
 
 @app.route('/api/stats')
 def system_stats():
