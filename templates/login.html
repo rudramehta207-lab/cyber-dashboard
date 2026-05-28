@@ -1,0 +1,96 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>CloudShield Gateway Authentication</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        body { background-color: #06090e; color: #c9d1d9; font-family: monospace; }
+        .login-box { background-color: #0d1117; border: 1px solid #30363d; box-shadow: 0 0 15px rgba(34, 211, 238, 0.1); }
+    </style>
+</head>
+<body class="flex items-center justify-center min-h-screen p-4">
+
+    <div class="login-box w-full max-w-md p-6 rounded-lg">
+        <h1 id="panel-title" class="text-xl font-bold text-cyan-400 text-center uppercase tracking-widest border-b border-cyan-500/30 pb-3 mb-6">
+            🔐 GRID IDENTITY VERIFICATION
+        </h1>
+
+        <div id="auth-alert" class="hidden p-3 rounded text-center text-xs font-bold mb-4"></div>
+
+        <form id="auth-form" class="space-y-4">
+            <div>
+                <label class="block text-xs text-gray-400 uppercase tracking-wider mb-1">Operator Alias:</label>
+                <input type="text" name="username" class="w-full bg-gray-900 p-2.5 border border-gray-700 rounded text-sm text-cyan-400 focus:outline-none focus:border-cyan-500" placeholder="Username" required>
+            </div>
+            <div>
+                <label class="block text-xs text-gray-400 uppercase tracking-wider mb-1">Cryptographic Access Passkey:</label>
+                <input type="password" name="password" class="w-full bg-gray-900 p-2.5 border border-gray-700 rounded text-sm text-white focus:outline-none focus:border-cyan-500" placeholder="••••••••" required>
+            </div>
+            
+            <button type="submit" id="submit-btn" class="w-full bg-cyan-700 hover:bg-cyan-600 text-white font-bold py-2 rounded text-sm tracking-widest transition duration-200">
+                AUTHORIZE IDENTITY
+            </button>
+        </form>
+
+        <div class="mt-4 text-center">
+            <button id="toggle-view" class="text-xs text-cyan-500 hover:underline">
+                Request access allocation registration? (Create Account)
+            </button>
+        </div>
+    </div>
+
+    <script>
+        let isLoginMode = true;
+        const form = document.getElementById('auth-form');
+        const alertBox = document.getElementById('auth-alert');
+        const title = document.getElementById('panel-title');
+        const submitBtn = document.getElementById('submit-btn');
+        const toggleBtn = document.getElementById('toggle-view');
+
+        toggleBtn.addEventListener('click', () => {
+            isLoginMode = !isLoginMode;
+            if (isLoginMode) {
+                title.innerText = "🔐 GRID IDENTITY VERIFICATION";
+                submitBtn.innerText = "AUTHORIZE IDENTITY";
+                toggleBtn.innerText = "Request access allocation registration? (Create Account)";
+            } else {
+                title.innerText = "🛠️ REGISTER NEW OPERATOR NODE";
+                submitBtn.innerText = "CREATE SECURITY IDENTITY";
+                toggleBtn.innerText = "Already possess assigned matrix credentials? Sign In";
+            }
+            alertBox.classList.add('hidden');
+        });
+
+        form.addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const formData = new URLSearchParams(new FormData(form));
+            const endpoint = isLoginMode ? '/api/auth/login' : '/api/auth/signup';
+            
+            alertBox.className = "p-3 rounded text-center text-xs font-bold mb-4 bg-gray-800 text-gray-400 animate-pulse block";
+            alertBox.innerText = "Processing security validation algorithms...";
+
+            const res = await fetch(endpoint, {
+                method: 'POST',
+                body: formData,
+                headers: { 'Content-Type': 'application/x-www-form-urlencoded' }
+            });
+            const data = await res.json();
+
+            if (res.ok) {
+                alertBox.className = "p-3 rounded text-center text-xs font-bold mb-4 bg-green-950/50 border border-green-500 text-green-400 block";
+                alertBox.innerText = data.message;
+                if (isLoginMode) {
+                    setTimeout(() => window.location.href = '/', 1000);
+                } else {
+                    setTimeout(() => toggleBtn.click(), 1500);
+                }
+            } else {
+                alertBox.className = "p-3 rounded text-center text-xs font-bold mb-4 bg-red-950/50 border border-red-500 text-red-400 block";
+                alertBox.innerText = data.error;
+            }
+        });
+    </script>
+</body>
+</html>
