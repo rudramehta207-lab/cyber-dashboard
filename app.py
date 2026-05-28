@@ -4,17 +4,18 @@ import os
 import platform
 import random
 import uuid
-from flask import Flask, jsonify, render_template, request, send_file
 import psutil
+from flask import Flask, jsonify, render_template, request, send_file
+from werkzeug.utils import secure_filename
 from PIL import Image
 
 app = Flask(__name__)
 
-UPLOAD_FOLDER = "uploads"
+# Temporary cloud storage directory setup for Render compatibility
+UPLOAD_FOLDER = '/tmp/vault_storage' if os.environ.get('RENDER') else 'vault_storage'
 os.makedirs(UPLOAD_FOLDER, exist_ok=True)
 
 # Shared global tracking memory (Simulating a Cloud Database)
-# Tracks global files, destinations, access logs, and security keys
 global_vault_tracker = {}
 
 incidents_log = [
@@ -75,13 +76,10 @@ def system_stats():
         "banned_count": len(banned_ips)
     })
 
-# --- USER MITIGATION ENDPOINT (SOLVE CRITICAL PROBLEMS MANUALLY) ---
+# --- USER MITIGATION ENDPOINT ---
 @app.route('/api/resolve-breach/<int:incident_id>', methods=['POST'])
 def resolve_specific_breach(incident_id):
-    """Allows users to manually fix individual critical tracking breaches from the frontend stream."""
-    global incidents_log, global_vault_tracker
-    
-    # Find the targeted incident log to resolve it
+    global incidents_log
     for inc in incidents_log:
         if inc["id"] == incident_id:
             inc["title"] = f"[RESOLVED] {inc['title']}"
@@ -91,10 +89,9 @@ def resolve_specific_breach(incident_id):
             
     return jsonify({"success": True, "message": f"Incident #{incident_id} successfully isolated and patched."})
 
-# --- MULTITASKING GLOBAL FILE SENDING & TRACKING MATRIX ---
+# --- MULTITASKING GLOBAL FILE MULTI-FORMAT PROCESSING ---
 @app.route('/api/global-send', methods=['POST'])
 def global_send():
-    """Packages a stego file, generates global tracking tokens, and arms a tripwire security system."""
     global incident_id_counter, incidents_log
     
     if 'file' not in request.files or 'message' not in request.form:
@@ -103,55 +100,66 @@ def global_send():
     file = request.files['file']
     secret_message = request.form['message']
     destination_country = request.form.get('country', 'Global Node')
-    access_password = request.form.get('password', '') # Optional extra authorization ring
+    access_password = request.form.get('password', '')
     
     if file.filename == '' or not secret_message:
         return jsonify({"error": "Payload invalid."}), 400
 
-    try:
-        # 1. Embed data into pixels via LSB Steganography
-        img = Image.open(file.stream).convert('RGB')
-        pixels = img.load()
-        binary_msg = text_to_binary(secret_message)
-        data_index, msg_length = 0, len(binary_msg)
-        width, height = img.size
-        
-        for y in range(height):
-            for x in range(width):
-                if data_index < msg_length:
-                    r, g, b = pixels[x, y]
-                    r = (r & ~1) | int(binary_msg[data_index]); data_index += 1
-                    if data_index < msg_length: g = (g & ~1) | int(binary_msg[data_index]); data_index += 1
-                    if data_index < msg_length: b = (b & ~1) | int(binary_msg[data_index]); data_index += 1
-                    pixels[x, y] = (r, g, b)
-                else: break
-            if data_index >= msg_length: break
+    tracking_id = str(uuid.uuid4())[:8].upper()
+    filename = secure_filename(file.filename)
+    file_ext = os.path.splitext(filename)[1].lower()
 
-        # Save to memory instead of writing static server files
-        output_stream = io.BytesIO()
-        img.save(output_stream, format="PNG")
-        file_data_bytes = output_stream.getvalue()
+    try:
+        # Check if the asset is an image to support pixel injection
+        if file_ext in ['.png', '.jpg', '.jpeg']:
+            img = Image.open(file.stream).convert('RGB')
+            pixels = img.load()
+            binary_msg = text_to_binary(secret_message)
+            data_index, msg_length = 0, len(binary_msg)
+            width, height = img.size
+            
+            for y in range(height):
+                for x in range(width):
+                    if data_index < msg_length:
+                        r, g, b = pixels[x, y]
+                        r = (r & ~1) | int(binary_msg[data_index]); data_index += 1
+                        if data_index < msg_length: g = (g & ~1) | int(binary_msg[data_index]); data_index += 1
+                        if data_index < msg_length: b = (b & ~1) | int(binary_msg[data_index]); data_index += 1
+                        pixels[x, y] = (r, g, b)
+                    else: break
+                if data_index >= msg_length: break
+
+            output_stream = io.BytesIO()
+            img.save(output_stream, format="PNG")
+            file_data_bytes = output_stream.getvalue()
+            final_filename = f"secure_vault_{tracking_id}.png"
         
-        # 2. Register tracking metrics into global data map
-        tracking_id = str(uuid.uuid4())[:8].upper() # Generation of sharp short tracking tags
+        else:
+            # Fallback for alternative formats (Videos, ZIPs, Audio)
+            # Reads data directly and processes it securely via file streaming
+            file_bytes = file.read()
+            file_data_bytes = file_bytes
+            final_filename = f"secure_vault_{tracking_id}{file_ext}"
+
         file_hash = hashlib.sha256(file_data_bytes).hexdigest()[:16]
         
+        # Save payload parameters into active system memory register
         global_vault_tracker[tracking_id] = {
-            "filename": f"secure_vault_{tracking_id}.png",
+            "filename": final_filename,
             "file_bytes": file_data_bytes,
             "hash": file_hash,
             "destination": destination_country,
             "password": access_password,
+            "secret_payload": secret_message,
             "status": "IN_TRANSIT",
             "access_history": []
         }
         
-        # Log successful initialization
         incident_id_counter += 1
         incidents_log.append({
             "id": incident_id_counter,
             "title": f"Secure Link Spawned: ID {tracking_id}",
-            "desc": f"File bound for {destination_country} with cryptographic signature {file_hash}.",
+            "desc": f"Package bound for {destination_country} with cryptographic signature {file_hash}.",
             "type": "info"
         })
         
@@ -159,7 +167,8 @@ def global_send():
             "success": True,
             "tracking_id": tracking_id,
             "hash": file_hash,
-            "destination": destination_country
+            "destination": destination_country,
+            "status_message": "🚀 SUCCESS: Cryptographic package deployed! Message delivered to grid network registry."
         })
         
     except Exception as e:
@@ -167,7 +176,6 @@ def global_send():
 
 @app.route('/api/global-track/<tracking_id>', methods=['GET'])
 def global_track(tracking_id):
-    """Returns the live location, routing history, and current transit metrics of a specific secure package."""
     if tracking_id not in global_vault_tracker:
         return jsonify({"success": False, "error": "Token not found on global index registries."}), 404
         
@@ -183,8 +191,7 @@ def global_track(tracking_id):
 
 @app.route('/api/global-receive', methods=['POST'])
 def global_receive():
-    """Handles package collection. If authentication parameters fail, an absolute critical breach alert is tripped."""
-    global incident_id_counter, incidents_log, banned_ips
+    global incident_id_counter, incidents_log
     
     tracking_id = request.form.get('tracking_id', '').upper()
     provided_password = request.form.get('password', '')
@@ -195,9 +202,8 @@ def global_receive():
         
     record = global_vault_tracker[tracking_id]
     
-    # TRIPWIRE WARNING TRIGGER DETECTOR
+    # TRIPWIRE INTERCEPTION TRIGGERED
     if record["password"] != provided_password:
-        # Flag absolute critical alert breach to both the sender and tracking metrics streams
         incident_id_counter += 1
         attacker_ip = f"45.223.10.{random.randint(10,250)}"
         
@@ -213,9 +219,8 @@ def global_receive():
             "country": attempt_country,
             "status": "ALERTED"
         })
-        return jsonify({"success": False, "error": "SECURITY CRITICAL ALERT: Key verification error. Interception attempt flagged to security centers."}), 403
+        return jsonify({"error": "🔒 BREACH ALERT: Security critical verification error. Interception attempt flagged to tracking terminal."}), 403
 
-    # Success routing logic path
     record["status"] = "DELIVERED"
     record["access_history"].append({
         "event": "Package Checked Out Securely",
@@ -223,9 +228,14 @@ def global_receive():
         "status": "SUCCESS"
     })
     
-    # Hand off binary file stream down pipelines instantly
+    # Send custom verification response layout along with binary download
     file_stream = io.BytesIO(record["file_bytes"])
-    return send_file(file_stream, as_attachment=True, download_name=record["filename"], mimetype="image/png")
+    
+    # Note: For file downloads combined with UI alerts, the frontend can read header values 
+    # or handle payload messages cleanly. This hands over the file directly.
+    return send_file(file_stream, as_attachment=True, download_name=record["filename"])
 
 if __name__ == '__main__':
-    app.run(debug=True, port=5000)
+    # Configured to automatically bind to Render infrastructure environment specifications
+    port = int(os.environ.get("PORT", 10000))
+    app.run(host='0.0.0.0', port=port)
