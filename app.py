@@ -95,7 +95,7 @@ def logout():
     session.pop('username', None)
     return redirect(url_for('home'))
 
-# --- CORE OPS TERMINALS (PROTECTED BY SESSION LOCKS) ---
+# --- CORE OPS TERMINALS ---
 @app.route('/api/global-send', methods=['POST'])
 def global_send():
     global incident_id_counter, incidents_log
@@ -179,29 +179,42 @@ def global_send():
 @app.route('/api/global-receive', methods=['POST'])
 def global_receive():
     global incident_id_counter, incidents_log
-    
     if 'username' not in session:
         return jsonify({"error": "Unauthorized Terminal Request Blocked."}), 403
         
     tracking_id = request.form.get('tracking_id', '').upper()
     provided_password = request.form.get('password', '')
-    attempt_country = request.form.get('country', 'Unknown Node')
+    attempt_country = request.form.get('country', '').strip().lower() # Receiver input Node
     
     if tracking_id not in global_vault_tracker:
         return jsonify({"error": "Invalid Tracking ID reference tag."}), 404
         
     record = global_vault_tracker[tracking_id]
+    expected_country = record["destination"].strip().lower() # Sender target Node
     
+    # TRIPWIRE 1: Passkey Verification Check
     if record["password"] != provided_password:
         incident_id_counter += 1
         incidents_log.append({
             "id": incident_id_counter,
-            "title": "CRITICAL DATA INTERCEPTION ATTEMPT",
-            "desc": f"User [{session['username']}] failed verification passkey on Token {tracking_id} from {attempt_country}.",
+            "title": "CRITICAL PASSKEY BREACH ALERT",
+            "desc": f"User [{session['username']}] failed verification passkey on Token {tracking_id} from {request.form.get('country', 'Unknown')}.",
             "type": "critical"
         })
         return jsonify({"error": "🔒 BREACH ALERT: Security key verification error. Attack footprint logged."}), 403
 
+    # TRIPWIRE 2: STRICT LOCATION VALIDATION MATCH
+    if expected_country != attempt_country:
+        incident_id_counter += 1
+        incidents_log.append({
+            "id": incident_id_counter,
+            "title": "GEOLOCATION ROUTING COLD BREACH",
+            "desc": f"Package {tracking_id} intercepted at un-routed node [{request.form.get('country', 'Unknown')}]. Target route was restricted to [{record['destination']}].",
+            "type": "critical"
+        })
+        return jsonify({"error": f"🔒 ROUTING ERROR: Secure deployment package is restricted. Access denied at this endpoint location."}), 403
+
+    # Success Path if both password and location match perfectly
     record["status"] = "DELIVERED"
     file_stream = io.BytesIO(record["file_bytes"])
     return send_file(file_stream, as_attachment=True, download_name=record["filename"])
@@ -209,11 +222,23 @@ def global_receive():
 @app.route('/api/stats')
 def system_stats():
     cpu = psutil.cpu_percent(interval=None)
+    
+    # Packages telemetry dictionary safely to feed Panel 04 layout list
+    clean_tracker_summary = {}
+    for token, data in global_vault_tracker.items():
+        clean_tracker_summary[token] = {
+            "filename": data["filename"],
+            "destination": data["destination"],
+            "sender_identity": data["sender_identity"],
+            "status": data["status"]
+        }
+        
     return jsonify({
         "cpu_usage": cpu,
         "os_platform": platform.system(),
         "incidents": incidents_log[::-1],
-        "banned_count": len(banned_ips)
+        "banned_count": len(banned_ips),
+        "active_tracker": clean_tracker_summary
     })
 
 # --- MANUAL THREAT MITIGATION GATEWAY ---
