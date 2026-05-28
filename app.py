@@ -437,5 +437,6 @@ def system_stats():
     })
 
 if __name__ == '__main__':
+    # Configured to automatically bind to Render infrastructure environment specifications
     port = int(os.environ.get("PORT", 10000))
     app.run(host='0.0.0.0', port=port)
