@@ -24,6 +24,9 @@ global_vault_tracker = {}
 incidents_log = [{"id": 1, "title": "Security Mesh Initialized", "desc": "Adaptive tactical firewalls online.", "type": "info"}]
 incident_id_counter = 1
 
+# Session tracking for Honey-Token Probes
+session_probe_tracker = {}
+
 # --- DATABASE SETUP ---
 def init_db():
     conn = sqlite3.connect(DB_PATH)
@@ -123,7 +126,6 @@ def global_send():
     tracking_id = str(uuid.uuid4())[:8].upper()
     file_bytes = file.read()
     
-    # CALCULATE INTEGRITY HASH (MNCs LOVE THIS)
     integrity_hash = hashlib.sha256(file_bytes).hexdigest()
     
     global_vault_tracker[tracking_id] = {
@@ -146,11 +148,33 @@ def global_send():
 @app.route('/api/global-receive', methods=['POST'])
 def global_receive():
     global incident_id_counter, incidents_log
-    tracking_id = request.form.get('tracking_id', '').upper()
+    tracking_id = request.form.get('tracking_id', '').upper().strip()
     pwd = request.form.get('password', '')
     country = request.form.get('country', '').strip().lower()
-    
-    if tracking_id not in global_vault_tracker: return jsonify({"error": "Token not found."}), 404
+    user_key = session.get('username', 'anonymous')
+
+    # --- HONEY-TOKEN TRAP ENGINE ACTIVATION ---
+    if tracking_id not in global_vault_tracker:
+        session_probe_tracker[user_key] = session_probe_tracker.get(user_key, 0) + 1
+        incident_id_counter += 1
+        
+        if session_probe_tracker[user_key] >= 3:
+            incidents_log.append({
+                "id": incident_id_counter, 
+                "title": "HONEY-TOKEN TRAP ENGAGED", 
+                "desc": f"Operator [{user_key}] blocked. Excessive malicious token scanning detected.", 
+                "type": "critical"
+            })
+            return jsonify({"error": "🔒 CRITICAL FIREWALL INTERVENTION: Malicious registry probing detected. Connection quarantined."}), 403
+            
+        incidents_log.append({
+            "id": incident_id_counter, 
+            "title": "REGISTRY TOKEN SEARCH MISS", 
+            "desc": f"Invalid database token lookup for string [{tracking_id}]. Threat footprint mapped.", 
+            "type": "critical"
+        })
+        return jsonify({"error": "Invalid Tracking ID reference tag."}), 404
+        
     record = global_vault_tracker[tracking_id]
     
     if record["status"] != "IN_TRANSIT": return jsonify({"error": "Link Terminated."}), 403
@@ -161,9 +185,9 @@ def global_receive():
         incident_id_counter += 1
         if record["failed_attempts"] >= 3:
             record["status"] = "TERMINATED (BREACH)"
-            incidents_log.append({"id": incident_id_counter, "title": "AUTO-SHRED TRIGGERED", "desc": f"Token {tracking_id} destroyed.", "type": "critical"})
+            incidents_log.append({"id": incident_id_counter, "title": "AUTO-SHRED TRIGGERED", "desc": f"Token {tracking_id} destroyed due to brute force.", "type": "critical"})
         else:
-            incidents_log.append({"id": incident_id_counter, "title": "INTERCEPTION ATTEMPT", "desc": f"Failed access on {tracking_id}.", "type": "critical"})
+            incidents_log.append({"id": incident_id_counter, "title": "INTERCEPTION ATTEMPT", "desc": f"Failed verification on Token {tracking_id}.", "type": "critical"})
         return jsonify({"error": "Security Mismatch. Breach Logged."}), 403
 
     record["status"] = "DELIVERED"
@@ -179,9 +203,8 @@ def lock_token(tracking_id):
 
 @app.route('/api/stats')
 def system_stats():
-    # Dynamic Security Score Calculation
     breach_count = len([i for i in incidents_log if i['type'] == 'critical'])
-    health_score = max(100 - (breach_count * 15), 10)
+    health_score = max(100 - (breach_count * 12), 10) # 12 points drop per threat footprint
     
     clean_tracker = {}
     for tid, d in global_vault_tracker.items():
@@ -200,7 +223,13 @@ def system_stats():
 
 @app.route('/api/resolve-breach/<int:incident_id>', methods=['POST'])
 def resolve_specific_breach(incident_id):
-    global incidents_log
+    global incidents_log, session_probe_tracker
+    user_key = session.get('username', 'anonymous')
+    
+    # Clear the probe tracker penalties when patching logs
+    if user_key in session_probe_tracker:
+        session_probe_tracker[user_key] = 0
+        
     for inc in incidents_log:
         if inc["id"] == incident_id:
             inc["type"] = "info"
