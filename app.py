@@ -6,6 +6,7 @@ import random
 import sqlite3
 import uuid
 import psutil
+from datetime import datetime, timedelta
 from flask import Flask, jsonify, render_template, request, send_file, session, redirect, url_for
 from werkzeug.utils import secure_filename
 from PIL import Image
@@ -13,14 +14,14 @@ from PIL import Image
 app = Flask(__name__)
 app.secret_key = os.environ.get('SECRET_KEY', 'cybershield_ultra_secure_mesh_key_2026')
 
-# Persistent Storage Directories for Local vs Render Cloud Environment
+# Persistent Storage Directories
 UPLOAD_FOLDER = '/tmp/vault_storage' if os.environ.get('RENDER') else 'vault_storage'
 DB_PATH = '/tmp/cyber_grid.db' if os.environ.get('RENDER') else 'cyber_grid.db'
 os.makedirs(UPLOAD_FOLDER, exist_ok=True)
 
 # Shared global tracking memory
 global_vault_tracker = {}
-incidents_log = [{"id": 1, "title": "Security Mesh Initialized", "desc": "Authentication guards activated.", "type": "info"}]
+incidents_log = [{"id": 1, "title": "Security Mesh Initialized", "desc": "Adaptive tactical firewalls online.", "type": "info"}]
 banned_ips = []
 incident_id_counter = 1
 
@@ -110,6 +111,7 @@ def global_send():
     secret_message = request.form['message']
     destination_country = request.form.get('country', 'Global Node')
     access_password = request.form.get('password', '')
+    ttl_minutes = int(request.form.get('ttl', '30'))
     
     if file.filename == '' or not secret_message:
         return jsonify({"error": "Payload invalid."}), 400
@@ -147,6 +149,10 @@ def global_send():
 
         file_hash = hashlib.sha256(file_data_bytes).hexdigest()[:16]
         
+        # Calculate lifespan tracking milestones
+        timestamp_now = datetime.now()
+        expiration_time = timestamp_now + timedelta(minutes=ttl_minutes)
+
         global_vault_tracker[tracking_id] = {
             "filename": final_filename,
             "file_bytes": file_data_bytes,
@@ -155,14 +161,15 @@ def global_send():
             "password": access_password,
             "sender_identity": session['username'],
             "status": "IN_TRANSIT",
-            "access_history": []
+            "expires_at": expiration_time,
+            "failed_attempts": 0
         }
         
         incident_id_counter += 1
         incidents_log.append({
             "id": incident_id_counter,
             "title": f"Secure Link Spawned: ID {tracking_id}",
-            "desc": f"Sender [{session['username']}] routed data to {destination_country}.",
+            "desc": f"Sender [{session['username']}] deployed target assets with a {ttl_minutes}-minute countdown wall.",
             "type": "info"
         })
         
@@ -171,7 +178,7 @@ def global_send():
             "tracking_id": tracking_id,
             "hash": file_hash,
             "destination": destination_country,
-            "status_message": "🚀 SUCCESS: Cryptographic package deployed! Message delivered to grid network registry."
+            "status_message": "🚀 SUCCESS: Cryptographic package deployed! TTL countdown sequence active."
         })
     except Exception as e:
         return jsonify({"error": f"Failed setting global pipeline node: {str(e)}"}), 500
@@ -191,24 +198,48 @@ def global_receive():
         
     record = global_vault_tracker[tracking_id]
     
-    # CRITICAL SECURITY CHECK: Remote Kill-Switch Validation
+    # 1. KILL-SWITCH LOCKOUT VALIDATION
     if record["status"] == "REVOKED / LOCKED BY SENDER":
         return jsonify({"error": "🔒 ACCESS DENIED: This secure transmission package has been remotely terminated and locked by the sender."}), 403
 
+    # 2. BRUTE-FORCE LOCKOUT CHECK
+    if record["status"] == "CONTAINMENT LOCKOUT / TERMINATED":
+        return jsonify({"error": "🔒 CRITICAL EXPLOIT LOCKOUT: This node has permanently frozen due to excessive password failures."}), 403
+
+    # 3. TIME EXPIRED PROTECTION
+    if datetime.now() > record["expires_at"]:
+        record["status"] = "EXPIRED / TIME-ELAPSED SHREDDED"
+        record["file_bytes"] = None  # Wipe contents from RAM heap immediately
+        return jsonify({"error": "⌛ ROUTING ERROR: Transmission lifetime has elapsed. Asset file automatically shredded from cloud RAM."}), 403
+
     expected_country = record["destination"].strip().lower()
     
-    # TRIPWIRE 1: Passkey Verification Check
+    # 4. PASSKEY VERIFICATION WITH STRIKE SYSTEM COUNTER
     if record["password"] != provided_password:
+        record["failed_attempts"] += 1
+        remaining_strikes = 3 - record["failed_attempts"]
         incident_id_counter += 1
+        
+        if record["failed_attempts"] >= 3:
+            record["status"] = "CONTAINMENT LOCKOUT / TERMINATED"
+            record["file_bytes"] = None # Free memory block
+            incidents_log.append({
+                "id": incident_id_counter,
+                "title": "BRUTE FORCE AUTO-SHRED SWITCH TRIGGERED",
+                "desc": f"Token {tracking_id} sustained 3 structural passkey failure strikes. File securely zeroed and dropped.",
+                "type": "critical"
+            })
+            return jsonify({"error": "🔒 EXPLOIT TAMPERING DETECTED: 3 failed strikes reached. Data drop has completely self-destructed."}), 403
+        
         incidents_log.append({
             "id": incident_id_counter,
-            "title": "CRITICAL PASSKEY BREACH ALERT",
-            "desc": f"User [{session['username']}] failed verification passkey on Token {tracking_id} from {request.form.get('country', 'Unknown')}.",
+            "title": "PASSKEY VALIDATION FAILURE STRIKE",
+            "desc": f"User [{session['username']}] missed security key match on Token {tracking_id} [{remaining_strikes} attempts left].",
             "type": "critical"
         })
-        return jsonify({"error": "🔒 BREACH ALERT: Security key verification error. Attack footprint logged."}), 403
+        return jsonify({"error": f"🔒 PASSKEY ERROR: Access blocked. {remaining_strikes} validation attempts remain before data self-destructs."}), 403
 
-    # TRIPWIRE 2: STRICT LOCATION VALIDATION MATCH
+    # 5. GEOLOCATION ROUTING CHECK
     if expected_country != attempt_country:
         incident_id_counter += 1
         incidents_log.append({
@@ -217,9 +248,9 @@ def global_receive():
             "desc": f"Package {tracking_id} intercepted at un-routed node [{request.form.get('country', 'Unknown')}]. Target route was restricted to [{record['destination']}].",
             "type": "critical"
         })
-        return jsonify({"error": f"🔒 ROUTING ERROR: Secure deployment package is restricted. Access denied at this endpoint location."}), 403
+        return jsonify({"error": "🔒 ROUTING ERROR: Secure deployment package is restricted. Access denied at this endpoint location."}), 403
 
-    # SNAPCHAT BURN POLICY: Switch status to delivered so it can never be pulled again
+    # BURN POLICY: Destroy connection immediately after download completes
     record["status"] = "DELIVERED"
     file_stream = io.BytesIO(record["file_bytes"])
     return send_file(file_stream, as_attachment=True, download_name=record["filename"])
@@ -231,15 +262,15 @@ def lock_token(tracking_id):
         
     tracking_id = tracking_id.upper()
     if tracking_id in global_vault_tracker:
-        # Check ownership validation ring
         if global_vault_tracker[tracking_id]["sender_identity"] == session['username']:
             global_vault_tracker[tracking_id]["status"] = "REVOKED / LOCKED BY SENDER"
+            global_vault_tracker[tracking_id]["file_bytes"] = None
             
             global incident_id_counter, incidents_log
             incident_id_counter += 1
             incidents_log.append({
                 "id": incident_id_counter,
-                "title": f"MANUAL REMOTE LOCK TRIGGERED",
+                "title": "MANUAL REMOTE LOCK TRIGGERED",
                 "desc": f"Operator [{session['username']}] remotely revoked and destroyed access permissions for Token {tracking_id}.",
                 "type": "info"
             })
@@ -251,14 +282,28 @@ def lock_token(tracking_id):
 def system_stats():
     cpu = psutil.cpu_percent(interval=None)
     
-    # Packages telemetry dictionary safely to feed Panel 04 layout list
     clean_tracker_summary = {}
-    for token, data in global_vault_tracker.items():
+    for token, data in list(global_vault_tracker.items()):
+        # Handle passive expiration checks on request sweeps
+        if data["status"] == "IN_TRANSIT" and datetime.now() > data["expires_at"]:
+            data["status"] = "EXPIRED / TIME-ELAPSED SHREDDED"
+            data["file_bytes"] = None
+            
+        time_left_str = "TERMINATED"
+        if data["status"] == "IN_TRANSIT":
+            diff = data["expires_at"] - datetime.now()
+            if diff.total_seconds() > 0:
+                mins, secs = divmod(int(diff.total_seconds()), 60)
+                time_left_str = f"{mins}m {secs}s"
+            else:
+                time_left_str = "EXPIRED"
+
         clean_tracker_summary[token] = {
             "filename": data["filename"],
             "destination": data["destination"],
             "sender_identity": data["sender_identity"],
-            "status": data["status"]
+            "status": data["status"],
+            "time_left": time_left_str
         }
         
     return jsonify({
@@ -269,7 +314,6 @@ def system_stats():
         "active_tracker": clean_tracker_summary
     })
 
-# --- MANUAL THREAT MITIGATION GATEWAY ---
 @app.route('/api/resolve-breach/<int:incident_id>', methods=['POST'])
 def resolve_specific_breach(incident_id):
     global incidents_log
@@ -283,6 +327,5 @@ def resolve_specific_breach(incident_id):
     return jsonify({"success": True, "message": f"Incident #{incident_id} successfully isolated and patched."})
 
 if __name__ == '__main__':
-    # Binds perfectly with Render infrastructure spec paths
     port = int(os.environ.get("PORT", 10000))
     app.run(host='0.0.0.0', port=port)
