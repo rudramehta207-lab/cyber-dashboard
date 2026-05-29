@@ -120,26 +120,29 @@ def auth_verify_submit():
         
     method = request.form.get('method', '')
     token = request.form.get('token', '').strip()
+    target_input = request.form.get('target_input', '').strip() # Captures the number, email, or MAC entered
     
     if not token:
-        return jsonify({"success": False, "error": "Verification token string missing."}), 400
+        return jsonify({"success": False, "error": "Verification token sequence missing."}), 400
         
-    # Standard simulation validation key (accepts mock passcode 7721)
-    if token == "7721" or method in ['google', 'apple', 'mac']:
+    if not target_input:
+        return jsonify({"success": False, "error": f"Required authentication identity target for {method.upper()} is missing."}), 400
+        
+    # Validates against any matching 4-digit numeric submission to pass the security ring
+    if len(token) == 4 and token.isdigit():
         session['verified'] = True
         
         global incident_id_counter, incidents_log
         incident_id_counter += 1
         incidents_log.append({
             "id": incident_id_counter,
-            "title": "MFA PROTOCOL VERIFIED",
-            "desc": f"Operator [{session['username']}] cleared secondary layer validation via system standard [{method.upper()}].",
+            "title": f"MFA NODE VERIFIED: {method.upper()}",
+            "desc": f"Operator [{session['username']}] cleared gateway check. Target: {target_input}.",
             "type": "info"
         })
-        return jsonify({"success": True, "message": "Verification confirmed. System access granted."})
+        return jsonify({"success": True, "message": "Verification confirmed. Space cleared."})
         
-    return jsonify({"success": False, "error": "Verification Failed: Invalid token response signature."}), 400
-
+    return jsonify({"success": False, "error": "Verification Failed: Invalid cryptographic response token signature."}), 400
 @app.route('/logout')
 def logout():
     session.pop('username', None)
