@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>CloudShield SOC // Advanced Ops</title>
+    <title>CloudShield // Corporate Security Command Core</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -96,12 +96,20 @@
             <div id="sender-output" class="mt-4 p-3 bg-black rounded-xl hidden text-[11px] font-mono"></div>
         </section>
 
-        <section class="terminal-box p-6 rounded-3xl flex flex-col">
-            <h2 class="text-xs font-black text-purple-400 uppercase tracking-widest mb-6 flex justify-between items-center">
-                <span>▶ 02. Live Intelligence Feed</span>
-                <span class="bg-purple-950/50 text-purple-400 border border-purple-800 px-2 py-0.5 rounded-md text-[9px]">MONITORING</span>
-            </h2>
-            <div id="incident-feed-box" class="flex-grow space-y-3 overflow-y-auto max-h-[350px] pr-2"></div>
+        <section class="terminal-box p-6 rounded-3xl flex flex-col justify-between">
+            <div>
+                <h2 class="text-xs font-black text-purple-400 uppercase tracking-widest mb-4 flex justify-between items-center">
+                    <span>▶ 02. Live Intelligence Feed</span>
+                    <span class="bg-purple-950/50 text-purple-400 border border-purple-800 px-2 py-0.5 rounded-md text-[9px]">MONITORING</span>
+                </h2>
+                <div id="incident-feed-box" class="space-y-3 overflow-y-auto max-h-[300px] pr-2"></div>
+            </div>
+            
+            <div class="pt-4 border-t border-gray-800 mt-2">
+                <a href="/api/export-logs" class="w-full inline-flex items-center justify-center bg-gray-900 border border-gray-800 hover:bg-gray-800 hover:border-purple-500 text-purple-400 font-bold py-2.5 rounded-xl text-xs transition uppercase tracking-wider gap-2">
+                    📊 Export Security Audit Trail (CSV)
+                </a>
+            </div>
         </section>
 
         <section class="terminal-box p-6 rounded-3xl">
@@ -271,7 +279,6 @@
             fetchStats(); 
         }
 
-        // Handle dynamic frontend unit adjustments constraints
         document.getElementById('ttl-unit').addEventListener('change', function() {
             const valInput = document.getElementById('ttl-value');
             if (this.value === 'hours') {
