@@ -28,7 +28,6 @@ incidents_log = [{"id": 1, "time": datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
 incident_id_counter = 1
 session_probe_tracker = {}
 
-# List of global target node simulators
 GLOBAL_TRAFFIC_NODES = ["Tokyo Core Vault", "London Ingress Hub", "Frankfurt Edge Relay", "Bangalore Data Pipeline", "Singapore Mesh Node", "New York Border Gateway"]
 
 # --- DATABASE SETUP ---
@@ -50,18 +49,15 @@ init_db()
 def hash_password(password):
     return hashlib.sha256(password.encode()).hexdigest()
 
-# --- AUTOMATED BACKGROUND BACKGROUND ENGINES (SHREDDER & NODE MONITOR) ---
+# --- AUTOMATED BACKGROUND DAEMON ---
 def advanced_background_daemon():
-    """Background thread handling auto-shredding AND dynamic global node traffic streaming."""
     global incident_id_counter, incidents_log
     traffic_ticks = 0
-    
     while True:
-        time.sleep(5) # Runs a task pulse every 5 seconds
+        time.sleep(5)
         now = datetime.now()
         traffic_ticks += 1
         
-        # TASK 1: SELF-SHRED EXPIRATION WINDOW LOOP
         for token, data in list(global_vault_tracker.items()):
             if data["status"] == "IN_TRANSIT" and now > data["expires_at"]:
                 data["status"] = "EXPIRED / AUTOMATICALLY SHREDDED"
@@ -76,8 +72,7 @@ def advanced_background_daemon():
                     "type": "critical"
                 })
 
-        # TASK 2: LIVE SIMULATED NETWORK INFRASTRUCTURE HEARTBEATS
-        if traffic_ticks % 2 == 0: # Every 10 seconds, drop a routine traffic heartbeat log
+        if traffic_ticks % 2 == 0:
             incident_id_counter += 1
             node_source = random.choice(GLOBAL_TRAFFIC_NODES)
             packet_size = random.randint(120, 980)
@@ -90,7 +85,6 @@ def advanced_background_daemon():
                 "type": "info"
             })
 
-# Start the advanced unified daemon thread
 cleanup_thread = threading.Thread(target=advanced_background_daemon, daemon=True)
 cleanup_thread.start()
 
@@ -159,7 +153,7 @@ def logout():
     session.clear()
     return redirect(url_for('home'))
 
-# --- CORE SECURITY OPERATIONS ---
+# --- CORE OPERATIONS ---
 @app.route('/api/global-send', methods=['POST'])
 def global_send():
     global incident_id_counter, incidents_log
@@ -178,7 +172,7 @@ def global_send():
         if ttl_minutes < 1 or ttl_minutes > 1440:
             return jsonify({"error": "Lifespan must be between 1 minute and 24 hours."}), 400
     except ValueError:
-        return jsonify({"error": "Lifespan must be an integer numeric value."}), 400
+        return jsonify({"error": "Lifespan must be an integer value."}), 400
     
     tracking_id = str(uuid.uuid4())[:8].upper()
     file_bytes = file.read()
@@ -241,12 +235,12 @@ def global_receive():
     record = global_vault_tracker[tracking_id]
     
     if "EXPIRED" in record["status"] or record["status"] == "REVOKED":
-        return jsonify({"error": "🔒 ACCESS DENIED: This secure deployment link has expired or been shredded from RAM memory."}), 403
+        return jsonify({"error": "🔒 ACCESS DENIED: This secure link has expired or been shredded from memory."}), 403
         
     if datetime.now() > record["expires_at"]: 
         record["status"] = "EXPIRED / TIME-ELAPSED SHREDDED"
         record["file_bytes"] = None
-        return jsonify({"error": "🔒 LINK EXPIRED: Lifetime boundary reached. Content destroyed."}), 403
+        return jsonify({"error": "🔒 LINK EXPIRED: Lifetime boundary reached."}), 403
     
     if record["password"] != pwd or record["destination"].lower() != country:
         record["failed_attempts"] += 1
@@ -283,28 +277,57 @@ def lock_token(tracking_id):
         return jsonify({"success": True})
     return jsonify({"success": False}), 400
 
-# --- COMPLIANCE ROUTE: SECURITY EVENT EXPORTER ---
 @app.route('/api/export-logs')
 def export_logs():
     if 'username' not in session or session.get('verified') is not True: return "Unauthorized", 403
-    
     si = io.StringIO()
     cw = csv.writer(si)
     cw.writerow(["EVENT_ID", "TIMESTAMP", "ALERT_LEVEL_TYPE", "SECURITY_EVENT_TITLE", "THREAT_METRIC_DESCRIPTION"])
-    
     for inc in incidents_log:
         cw.writerow([inc["id"], inc["time"], inc["type"].upper(), inc["title"], inc["desc"]])
-        
     output = io.BytesIO()
     output.write(si.getvalue().encode('utf-8'))
     output.seek(0)
-    
     return send_file(output, as_attachment=True, download_name=f"cloudshield_compliance_audit_{datetime.now().strftime('%Y%m%d')}.csv", mimetype="text/csv")
+
+# --- EXECUTIVE DIAGNOSTIC TERMINAL PARSER ENDPOINT ---
+@app.route('/api/terminal-shell', methods=['POST'])
+def terminal_shell():
+    if 'username' not in session or session.get('verified') is not True: return jsonify({"output": "Access Blocked."}), 403
+    
+    cmd = request.form.get('command', '').strip().lower()
+    global incident_id_counter, incidents_log, global_vault_tracker
+    
+    if not cmd:
+        return jsonify({"output": ""})
+    
+    if cmd == "help":
+        return jsonify({"output": ">>> AVAILABLE SOC CORE UTILITIES:\n -> sys-check     : Reviews deployment hardware architecture footprint.\n -> purge-cache   : Manually flushes and shreds dead tracking records.\n -> trigger-test  : Forces a simulation attack tripwire event logic loop.\n -> clear         : Resets local HUD interface buffer lines."})
+        
+    elif cmd == "sys-check":
+        return jsonify({"output": f">>> INFRASTRUCTURE TELEMETRY METRICS:\n - PLATFORM CORE : {platform.system()} {platform.release()}\n - NODE CPU LOAD : {psutil.cpu_percent()}%\n - MEMORY ALLOC  : ACTIVE RAM POOL MAPPED\n - HEAP TRACKERS : {len(global_vault_tracker)} tokens registered."})
+        
+    elif cmd == "purge-cache":
+        global_vault_tracker.clear()
+        return jsonify({"output": ">>> SYSTEM MEMORY DEFRAGMENTATION COMPLETE. All active data array buffers zeroed out."})
+        
+    elif cmd == "trigger-test":
+        incident_id_counter += 1
+        incidents_log.append({
+            "id": incident_id_counter,
+            "time": datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
+            "title": "SIMULATED EXPLOIT INTRUSION",
+            "desc": "CRITICAL USE-CASE TRIGGERED: Port scan warning spoof run passed down to test reactive scoring gauges.",
+            "type": "critical"
+        })
+        return jsonify({"output": ">>> SCRIPT TRIGGER SUCCESS: Mock critical breach vector injected into Panel 02 feed logs."})
+        
+    return jsonify({"output": f"bash: command not found: {cmd}. Type 'help' to see diagnostic permissions."})
 
 @app.route('/api/stats')
 def system_stats():
     breach_count = len([i for i in incidents_log if i['type'] == 'critical'])
-    health_score = max(100 - (breach_count * 10), 10) # Drops 10 points per threat matrix hit
+    health_score = max(100 - (breach_count * 10), 10)
     
     clean_tracker = {}
     for tid, d in global_vault_tracker.items():
@@ -328,7 +351,7 @@ def system_stats():
     return jsonify({
         "cpu_usage": psutil.cpu_percent(),
         "health_score": health_score,
-        "incidents": incidents_log[::-1][:15], # Increases feed history visualization rows
+        "incidents": incidents_log[::-1][:15],
         "active_tracker": clean_tracker
     })
 
