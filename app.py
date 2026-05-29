@@ -8,6 +8,7 @@ import uuid
 import psutil
 import threading
 import time
+import csv
 from datetime import datetime, timedelta
 from flask import Flask, jsonify, render_template, request, send_file, session, redirect, url_for
 from werkzeug.utils import secure_filename
@@ -23,7 +24,7 @@ os.makedirs(UPLOAD_FOLDER, exist_ok=True)
 
 # Shared global tracking memory
 global_vault_tracker = {}
-incidents_log = [{"id": 1, "title": "Security Mesh Initialized", "desc": "Adaptive tactical firewalls online.", "type": "info"}]
+incidents_log = [{"id": 1, "time": datetime.now().strftime('%Y-%m-%d %H:%M:%S'), "title": "Security Mesh Initialized", "desc": "Adaptive tactical firewalls online.", "type": "info"}]
 incident_id_counter = 1
 session_probe_tracker = {}
 
@@ -48,7 +49,6 @@ def hash_password(password):
 
 # --- AUTOMATED BACKGROUND MEMORY CLEANUP LOOP ---
 def auto_shredder_loop():
-    """Background daemon thread running every 10 seconds to automatically clear expired files from RAM."""
     global incident_id_counter, incidents_log
     while True:
         time.sleep(10)
@@ -56,17 +56,17 @@ def auto_shredder_loop():
         for token, data in list(global_vault_tracker.items()):
             if data["status"] == "IN_TRANSIT" and now > data["expires_at"]:
                 data["status"] = "EXPIRED / AUTOMATICALLY SHREDDED"
-                data["file_bytes"] = None  # Completely wipe file from memory heap
+                data["file_bytes"] = None  
                 
                 incident_id_counter += 1
                 incidents_log.append({
                     "id": incident_id_counter,
+                    "time": datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
                     "title": "BACKGROUND AUTO-SHRED COMPLETE",
-                    "desc": f"Token {token} exceeded its lifespan matrix window. Payload securely wiped by background daemon thread.",
+                    "desc": f"Token {token} exceeded its lifespan matrix window. Payload securely wiped from RAM heap.",
                     "type": "critical"
                 })
 
-# Start the background daemon thread
 cleanup_thread = threading.Thread(target=auto_shredder_loop, daemon=True)
 cleanup_thread.start()
 
@@ -135,7 +135,7 @@ def logout():
     session.clear()
     return redirect(url_for('home'))
 
-# --- CORE OPS ---
+# --- CORE SECURITY OPERATIONS ---
 @app.route('/api/global-send', methods=['POST'])
 def global_send():
     global incident_id_counter, incidents_log
@@ -146,25 +146,18 @@ def global_send():
     dest = request.form.get('country', 'Global Node')
     pwd = request.form.get('password', '')
     
-    # 24-HOUR CUSTOM INPUT VALIDATION
     try:
         ttl_value = int(request.form.get('ttl_value', '30'))
         ttl_unit = request.form.get('ttl_unit', 'minutes')
-        
-        if ttl_unit == 'hours':
-            ttl_minutes = ttl_value * 60
-        else:
-            ttl_minutes = ttl_value
+        ttl_minutes = ttl_value * 60 if ttl_unit == 'hours' else ttl_value
 
-        # Cap the limit strictly at 24 hours (1440 minutes)
         if ttl_minutes < 1 or ttl_minutes > 1440:
-            return jsonify({"error": "Validation Error: Mission lifespan must be between 1 minute and 24 hours."}), 400
+            return jsonify({"error": "Lifespan must be between 1 minute and 24 hours."}), 400
     except ValueError:
-        return jsonify({"error": "Validation Error: Lifespan must be a valid integer numeric value."}), 400
+        return jsonify({"error": "Lifespan must be an integer numeric value."}), 400
     
     tracking_id = str(uuid.uuid4())[:8].upper()
     file_bytes = file.read()
-    
     integrity_hash = hashlib.sha256(file_bytes).hexdigest()
     
     global_vault_tracker[tracking_id] = {
@@ -180,7 +173,13 @@ def global_send():
     }
     
     incident_id_counter += 1
-    incidents_log.append({"id": incident_id_counter, "title": "DEPLOYMENT ACTIVE", "desc": f"Package {tracking_id} deployed with a {ttl_value} {ttl_unit} self-destruct threshold.", "type": "info"})
+    incidents_log.append({
+        "id": incident_id_counter, 
+        "time": datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
+        "title": "DEPLOYMENT ACTIVE", 
+        "desc": f"Package {tracking_id} deployed with a {ttl_value} {ttl_unit} lifespan config.", 
+        "type": "info"
+    })
     
     return jsonify({"success": True, "tracking_id": tracking_id, "hash": integrity_hash[:16] + "..."})
 
@@ -197,18 +196,28 @@ def global_receive():
         incident_id_counter += 1
         
         if session_probe_tracker[user_key] >= 3:
-            incidents_log.append({"id": incident_id_counter, "title": "HONEY-TOKEN TRAP ENGAGED", "desc": f"Operator [{user_key}] blocked due to registry probing.", "type": "critical"})
+            incidents_log.append({
+                "id": incident_id_counter, 
+                "time": datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
+                "title": "HONEY-TOKEN TRAP ENGAGED", 
+                "desc": f"Operator [{user_key}] locked. Excessive registry probing patterns detected.", 
+                "type": "critical"
+            })
             return jsonify({"error": "🔒 CRITICAL FIREWALL INTERVENTION: Malicious registry probing detected. Connection quarantined."}), 403
             
-        incidents_log.append({"id": incident_id_counter, "title": "REGISTRY TOKEN SEARCH MISS", "desc": f"Invalid database lookup for token [{tracking_id}].", "type": "critical"})
+        incidents_log.append({
+            "id": incident_id_counter, 
+            "time": datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
+            "title": "REGISTRY TOKEN SEARCH MISS", 
+            "desc": f"Invalid database lookup for token sequence [{tracking_id}].", 
+            "type": "critical"
+        })
         return jsonify({"error": "Invalid Tracking ID reference tag."}), 404
         
     record = global_vault_tracker[tracking_id]
     
     if "EXPIRED" in record["status"] or record["status"] == "REVOKED":
         return jsonify({"error": "🔒 ACCESS DENIED: This secure deployment link has expired or been shredded from RAM memory."}), 403
-    if record["status"] != "IN_TRANSIT": 
-        return jsonify({"error": "Link Terminated."}), 403
         
     if datetime.now() > record["expires_at"]: 
         record["status"] = "EXPIRED / TIME-ELAPSED SHREDDED"
@@ -221,9 +230,21 @@ def global_receive():
         if record["failed_attempts"] >= 3:
             record["status"] = "TERMINATED (BREACH)"
             record["file_bytes"] = None
-            incidents_log.append({"id": incident_id_counter, "title": "AUTO-SHRED TRIGGERED", "desc": f"Token {tracking_id} destroyed due to brute force strikes.", "type": "critical"})
+            incidents_log.append({
+                "id": incident_id_counter, 
+                "time": datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
+                "title": "AUTO-SHRED TRIGGERED", 
+                "desc": f"Token {tracking_id} zeroed due to brute force strikes.", 
+                "type": "critical"
+            })
         else:
-            incidents_log.append({"id": incident_id_counter, "title": "INTERCEPTION ATTEMPT", "desc": f"Failed verification details on Token {tracking_id}.", "type": "critical"})
+            incidents_log.append({
+                "id": incident_id_counter, 
+                "time": datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
+                "title": "INTERCEPTION ATTEMPT", 
+                "desc": f"Failed verification credentials submitted on Token {tracking_id}.", 
+                "type": "critical"
+            })
         return jsonify({"error": "Security Mismatch. Breach Logged."}), 403
 
     record["status"] = "DELIVERED"
@@ -237,6 +258,25 @@ def lock_token(tracking_id):
         global_vault_tracker[tid]["file_bytes"] = None
         return jsonify({"success": True})
     return jsonify({"success": False}), 400
+
+# --- COMPLIANCE ROUTE: SECURITY EVENT EXPORTER ---
+@app.route('/api/export-logs')
+def export_logs():
+    if 'username' not in session or session.get('verified') is not True: return "Unauthorized", 403
+    
+    # Generate CSV stream mapping directly out of active incidents lists variables
+    si = io.StringIO()
+    cw = csv.writer(si)
+    cw.writerow(["EVENT_ID", "TIMESTAMP", "ALERT_LEVEL_TYPE", "SECURITY_EVENT_TITLE", "THREAT_METRIC_DESCRIPTION"])
+    
+    for inc in incidents_log:
+        cw.writerow([inc["id"], inc["time"], inc["type"].upper(), inc["title"], inc["desc"]])
+        
+    output = io.BytesIO()
+    output.write(si.getvalue().encode('utf-8'))
+    output.seek(0)
+    
+    return send_file(output, as_attachment=True, download_name=f"cloudshield_compliance_audit_{datetime.now().strftime('%Y%m%d')}.csv", mime_type="text/csv")
 
 @app.route('/api/stats')
 def system_stats():
