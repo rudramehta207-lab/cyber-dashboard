@@ -19,9 +19,6 @@
             border: 1px solid #30363d; 
             box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5); 
         }
-        .glow-title {
-            text-shadow: 0 0 12px rgba(245, 158, 11, 0.3);
-        }
     </style>
 </head>
 <body class="flex items-center justify-center min-h-screen p-4 tracking-tight">
@@ -29,58 +26,80 @@
     <div class="terminal-box w-full max-w-md p-6 md:p-8 rounded-2xl border-yellow-500/20 border">
         
         <div class="text-center mb-6">
-            <div class="inline-flex items-center justify-center w-12 h-12 rounded-full bg-yellow-500/10 text-yellow-500 mb-3 glow-title">
+            <div class="inline-flex items-center justify-center w-11 h-11 rounded-full bg-yellow-500/10 text-yellow-500 mb-3 text-lg">
                 ⚠️
             </div>
-            <h1 class="text-xl font-bold text-yellow-500 tracking-wide uppercase mb-1">
+            <h1 class="text-lg font-bold text-yellow-500 tracking-wide uppercase mb-0.5">
                 Verification Required
             </h1>
-            <p class="text-xs text-gray-500 font-medium uppercase tracking-wider">Identity Multi-Factor Handshake</p>
+            <p class="text-[11px] text-gray-500 font-bold uppercase tracking-wider">Identity Multi-Factor Handshake</p>
         </div>
 
-        <div class="bg-gray-900/60 p-3.5 border border-gray-800/80 rounded-xl mb-5 flex justify-between items-center">
-            <span class="text-xs text-gray-400 font-medium uppercase tracking-wider">Active Operator:</span>
-            <span class="text-cyan-400 font-bold tracking-wide text-sm bg-cyan-950/40 px-2.5 py-1 rounded-lg border border-cyan-800/30">📡 {{ username }}</span>
+        <div class="bg-gray-900/60 p-3 border border-gray-800/80 rounded-xl mb-5 flex justify-between items-center text-xs">
+            <span class="text-gray-400 font-medium uppercase tracking-wider">Active Operator:</span>
+            <span class="text-cyan-400 font-bold tracking-wide bg-cyan-950/40 px-2.5 py-1 rounded-lg border border-cyan-800/30">📡 {{ username }}</span>
         </div>
 
         <div class="space-y-3" id="verification-deck">
-            <label class="block text-[11px] text-gray-400 font-bold uppercase tracking-wider mb-1">Select Security Checkpoint:</label>
+            <label class="block text-[11px] text-gray-400 font-bold uppercase tracking-wider mb-1">Select Authentication Gateway:</label>
             
-            <button onclick="selectProtocol('google')" class="w-full bg-gray-900/40 border border-gray-800 hover:border-cyan-500/60 p-3.5 rounded-xl text-left text-xs font-bold text-gray-300 flex justify-between items-center transition-all duration-200 hover:scale-[1.01]">
-                <span>🤖 GOOGLE RE-AUTHENTICATOR SYNC</span>
-                <span class="text-[10px] font-sans bg-cyan-950 text-cyan-400 px-2 py-0.5 rounded-md border border-cyan-800/50">READY</span>
+            <button onclick="openForm('google')" class="w-full bg-gray-900/40 border border-gray-800 hover:border-cyan-500/60 p-3.5 rounded-xl text-left text-xs font-bold text-gray-300 flex justify-between items-center transition duration-150">
+                <span>🤖 GOOGLE APP RE-AUTHENTICATOR</span>
+                <span class="text-[10px] bg-cyan-950 text-cyan-400 px-2 py-0.5 rounded-md border border-cyan-800/50">LINK</span>
             </button>
 
-            <button onclick="selectProtocol('apple')" class="w-full bg-gray-900/40 border border-gray-800 hover:border-gray-500 p-3.5 rounded-xl text-left text-xs font-bold text-gray-300 flex justify-between items-center transition-all duration-200 hover:scale-[1.01]">
-                <span>🍏 APPLE ID CRYPTO HANDSHAKE</span>
-                <span class="text-[10px] font-sans bg-gray-800 text-gray-400 px-2 py-0.5 rounded-md border border-gray-700/50">STANDBY</span>
+            <button onclick="openForm('apple')" class="w-full bg-gray-900/40 border border-gray-800 hover:border-gray-500 p-3.5 rounded-xl text-left text-xs font-bold text-gray-300 flex justify-between items-center transition duration-150">
+                <span>🍏 APPLE ID SECURITY CLOUD</span>
+                <span class="text-[10px] bg-gray-800 text-gray-400 px-2 py-0.5 rounded-md border border-gray-700/50">HANDSHAKE</span>
             </button>
 
-            <button onclick="selectProtocol('mac')" class="w-full bg-gray-900/40 border border-gray-800 hover:border-purple-500/60 p-3.5 rounded-xl text-left text-xs font-bold text-gray-300 flex justify-between items-center transition-all duration-200 hover:scale-[1.01]">
-                <span>💻 DEVICE MAC SECURE FOOTPRINT</span>
-                <span class="text-[10px] font-sans bg-purple-950 text-purple-400 px-2 py-0.5 rounded-md border border-purple-800/50">SCANNER</span>
+            <button onclick="openForm('mac')" class="w-full bg-gray-900/40 border border-gray-800 hover:border-purple-500/60 p-3.5 rounded-xl text-left text-xs font-bold text-gray-300 flex justify-between items-center transition duration-150">
+                <span>💻 PHYSICAL DEVICE MAC FOOTPRINT</span>
+                <span class="text-[10px] bg-purple-950 text-purple-400 px-2 py-0.5 rounded-md border border-purple-800/50">SCANNER</span>
             </button>
 
-            <button onclick="selectProtocol('number')" class="w-full bg-gray-900/40 border border-gray-800 hover:border-yellow-500/60 p-3.5 rounded-xl text-left text-xs font-bold text-gray-300 flex justify-between items-center transition-all duration-200 hover:scale-[1.01]">
-                <span>📱 MOBILE SECURE NUMBER OTP BURST</span>
-                <span class="text-[10px] font-sans bg-yellow-950 text-yellow-400 px-2 py-0.5 rounded-md border border-yellow-800/50">SMS LINK</span>
+            <button onclick="openForm('number')" class="w-full bg-gray-900/40 border border-gray-800 hover:border-yellow-500/60 p-3.5 rounded-xl text-left text-xs font-bold text-gray-300 flex justify-between items-center transition duration-150">
+                <span>📱 MOBILE PHONE NUMBER GATEWAY</span>
+                <span class="text-[10px] bg-yellow-950 text-yellow-400 px-2 py-0.5 rounded-md border border-yellow-800/50">SMS OTP</span>
             </button>
         </div>
 
-        <form id="verify-form" class="hidden mt-4 space-y-4 pt-4 border-t border-gray-800/60 animate-fadeIn">
-            <input type="hidden" name="method" id="selected-method">
+        <div id="credential-stage" class="hidden space-y-4">
+            <h3 id="stage-title" class="text-xs font-bold text-cyan-400 uppercase tracking-wider border-b border-gray-800 pb-2">Checkpoint Configuration</h3>
             
             <div>
-                <label id="input-label" class="block text-[11px] text-gray-400 font-bold uppercase tracking-wider mb-2">Enter Token Sequence:</label>
-                <input type="text" name="token" id="token-input" placeholder="000000" class="w-full bg-gray-900 p-3 border border-gray-700 rounded-xl text-center font-bold tracking-widest text-sm text-yellow-400 focus:outline-none focus:border-yellow-500 shadow-inner" required>
-                <p id="tip-text" class="text-[11px] text-gray-400 mt-2 bg-yellow-950/20 border border-yellow-900/30 p-2.5 rounded-xl text-center font-medium"></p>
+                <label id="stage-label" class="block text-[11px] text-gray-400 font-bold uppercase tracking-wider mb-2">Target Input String:</label>
+                <input type="text" id="stage-input" class="w-full bg-gray-900 p-3 border border-gray-700 rounded-xl text-sm font-medium text-white focus:outline-none focus:border-cyan-500 shadow-inner">
             </div>
 
-            <div class="flex gap-2 pt-1">
-                <button type="button" onclick="cancelVerify()" class="w-1/3 bg-gray-900 border border-gray-800 hover:bg-gray-800 text-gray-400 font-bold py-2.5 rounded-xl text-xs transition-all uppercase tracking-wider">
-                    Back
+            <button type="button" onclick="generateSimulatedCode()" class="w-full bg-cyan-700 hover:bg-cyan-600 text-white font-bold py-3 rounded-xl text-xs transition uppercase tracking-widest">
+                Generate Security Code
+            </button>
+
+            <button onclick="goBackToDeck()" class="w-full text-center text-xs text-gray-500 hover:text-white transition uppercase font-bold tracking-wider pt-1">
+                Cancel
+            </button>
+        </div>
+
+        <div id="simulated-sms-alert" class="hidden my-4 p-3 bg-cyan-950/80 border border-cyan-500 rounded-xl text-xs text-center text-cyan-300">
+            <p class="font-bold uppercase tracking-wide">📥 SYSTEM NOTICE LINK</p>
+            <p id="alert-text" class="mt-1 font-medium text-white"></p>
+        </div>
+
+        <form id="verify-form" class="hidden space-y-4 pt-2">
+            <input type="hidden" name="method" id="selected-method">
+            <input type="hidden" name="target_input" id="final-target-input">
+            
+            <div>
+                <label class="block text-[11px] text-gray-400 font-bold uppercase tracking-wider mb-2">Enter the 4-Digit Code Received:</label>
+                <input type="text" name="token" id="token-input" maxlength="4" placeholder="0000" class="w-full bg-gray-900 p-3 border border-gray-700 rounded-xl text-center font-bold tracking-widest text-base text-yellow-400 focus:outline-none focus:border-yellow-500 shadow-inner" required>
+            </div>
+
+            <div class="flex gap-2">
+                <button type="button" onclick="goBackToDeck()" class="w-1/3 bg-gray-900 border border-gray-800 hover:bg-gray-800 text-gray-400 font-bold py-2.5 rounded-xl text-xs transition uppercase tracking-wider">
+                    Restart
                 </button>
-                <button type="submit" class="w-2/3 bg-yellow-600 hover:bg-yellow-500 text-black font-bold py-2.5 rounded-xl text-xs transition-all uppercase tracking-widest shadow-md font-sans">
+                <button type="submit" class="w-2/3 bg-yellow-600 hover:bg-yellow-500 text-black font-bold py-2.5 rounded-xl text-xs transition uppercase tracking-widest font-sans">
                     Confirm Identity
                 </button>
             </div>
@@ -91,35 +110,81 @@
     </div>
 
     <script>
-        function selectProtocol(method) {
+        let generatedToken = "";
+
+        function openForm(method) {
             document.getElementById('verification-deck').classList.add('hidden');
-            const form = document.getElementById('verify-form');
-            form.classList.remove('hidden');
+            document.getElementById('credential-stage').classList.remove('hidden');
             document.getElementById('selected-method').value = method;
             document.getElementById('error-output').classList.add('hidden');
+            document.getElementById('simulated-sms-alert').classList.add('hidden');
 
-            const label = document.getElementById('input-label');
-            const tip = document.getElementById('tip-text');
-            const input = document.getElementById('token-input');
+            const title = document.getElementById('stage-title');
+            const label = document.getElementById('stage-label');
+            const input = document.getElementById('stage-input');
 
-            if (method === 'google' || method === 'number') {
-                label.innerText = method === 'google' ? "Enter Google Authenticator Passcode:" : "Enter Mobile SMS Verification OTP:";
-                input.placeholder = "Enter 4-digit token...";
-                tip.innerHTML = "✨ <b>Testing Passcode:</b> Use simulation override token <span class='text-yellow-400 font-mono font-bold px-1 rounded bg-black'>7721</span> to clear access checkpoints.";
+            input.value = "";
+
+            if (method === 'number') {
+                title.innerText = "📱 MOBILE PHONE VALIDATION";
+                label.innerText = "Enter your Mobile Number:";
+                input.placeholder = "+91 XXXXX-XXXXX";
+            } else if (method === 'google') {
+                title.innerText = "🤖 GOOGLE ACCOUNT SECURITY LINK";
+                label.innerText = "Enter connected Gmail Address:";
+                input.placeholder = "example@gmail.com";
             } else if (method === 'apple') {
-                label.innerText = "Authorize Apple ID Cryptographic Key Link:";
-                input.placeholder = "Enter authorization code...";
-                tip.innerHTML = "✨ <b>Testing Passcode:</b> Enter <span class='text-yellow-400 font-mono font-bold px-1 rounded bg-black'>7721</span> to pass handshake variables.";
+                title.innerText = "🍏 APPLE ID IDENTITY HANDSHAKE";
+                label.innerText = "Enter Apple Account ID string:";
+                input.placeholder = "operator@icloud.com";
             } else if (method === 'mac') {
-                label.innerText = "Match Hardware Network Environment Footprint:";
-                input.placeholder = "Enter physical hardware override code...";
-                tip.innerHTML = "✨ <b>Testing Passcode:</b> Type <span class='text-yellow-400 font-mono font-bold px-1 rounded bg-black'>7721</span> to register device identity.";
+                title.innerText = "💻 HARDWARE SYSTEM FRAME CHECK";
+                label.innerText = "Enter Interface MAC Address:";
+                input.placeholder = "00:1A:2B:3C:4D:5E";
             }
         }
 
-        function cancelVerify() {
+        function generateSimulatedCode() {
+            const userInput = document.getElementById('stage-input').value.trim();
+            const method = document.getElementById('selected-method').value;
+            const errorBox = document.getElementById('error-output');
+
+            if (!userInput) {
+                errorBox.innerText = "❌ Please provide a valid credential input string.";
+                errorBox.classList.remove('hidden');
+                return;
+            }
+            errorBox.classList.add('hidden');
+
+            // Generate a secure random 4 digit code dynamically
+            generatedToken = Math.floor(1000 + Math.random() * 9000).toString();
+
+            // Set hidden inputs for the final database form payload submission
+            document.getElementById('final-target-input').value = userInput;
+
+            // Transition to code submission view layout
+            document.getElementById('credential-stage').classList.add('hidden');
+            document.getElementById('verify-form').classList.remove('hidden');
+
+            // Flash simulated reception notification
+            const alertBox = document.getElementById('simulated-sms-alert');
+            const alertText = document.getElementById('alert-text');
+            alertBox.classList.remove('hidden');
+
+            if (method === 'number') {
+                alertText.innerHTML = `💬 SMS Burst sent to <span class='text-yellow-400 font-bold'>${userInput}</span>. Your dynamic verification passcode is: <span class='bg-black font-mono px-1.5 py-0.5 text-yellow-400 rounded font-bold tracking-wider text-sm mx-1'>${generatedToken}</span>`;
+            } else if (method === 'google' || method === 'apple') {
+                alertText.innerHTML = `📩 Encrypted mail delivered to <span class='text-yellow-400 font-bold'>${userInput}</span>. Digital envelope key signature is: <span class='bg-black font-mono px-1.5 py-0.5 text-yellow-400 rounded font-bold tracking-wider text-sm mx-1'>${generatedToken}</span>`;
+            } else if (method === 'mac') {
+                alertText.innerHTML = `📟 Local network handshake complete on MAC node. Hardware sequence code generated: <span class='bg-black font-mono px-1.5 py-0.5 text-yellow-400 rounded font-bold tracking-wider text-sm mx-1'>${generatedToken}</span>`;
+            }
+        }
+
+        function goBackToDeck() {
             document.getElementById('verification-deck').classList.remove('hidden');
+            document.getElementById('credential-stage').classList.add('hidden');
             document.getElementById('verify-form').classList.add('hidden');
+            document.getElementById('simulated-sms-alert').classList.add('hidden');
             document.getElementById('error-output').classList.add('hidden');
         }
 
@@ -128,9 +193,19 @@
             const errorBox = document.getElementById('error-output');
             errorBox.classList.add('hidden');
 
+            const inputCode = document.getElementById('token-input').value.trim();
+
+            // Enforce that the user typed the exact code that popped up inside our notice window!
+            if (inputCode !== generatedToken) {
+                errorBox.innerText = "❌ Verification Failed: Code mismatch. The signature sequence does not match the generated token.";
+                errorBox.classList.remove('hidden');
+                return;
+            }
+
             const bodyData = new URLSearchParams();
             bodyData.append('method', document.getElementById('selected-method').value);
-            bodyData.append('token', document.getElementById('token-input').value);
+            bodyData.append('token', inputCode);
+            bodyData.append('target_input', document.getElementById('final-target-input').value);
 
             const res = await fetch('/api/auth/verify-submit', {
                 method: 'POST',
