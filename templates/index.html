@@ -32,7 +32,7 @@
     <header class="mb-8 flex flex-col md:flex-row justify-between items-center border-b border-gray-800 pb-6 gap-4">
         <div>
             <h1 class="text-2xl font-extrabold text-white tracking-tight flex items-center gap-2">
-                <span class="text-cyan-400">CLOUDSHIELD</span> RADAR <span class="text-xs bg-cyan-950 text-cyan-400 px-2.5 py-0.5 rounded-full border border-cyan-800/50 font-bold">SOC v2.0</span>
+                <span class="text-cyan-400">CLOUDSHIELD</span> RADAR <span class="text-xs bg-cyan-950 text-cyan-400 px-2 py-0.5 rounded-full border border-cyan-800/50 font-bold">SOC v2.0</span>
             </h1>
             <p class="text-xs text-gray-500 font-bold uppercase tracking-widest mt-1">Multi-Format Security Operations Center</p>
         </div>
@@ -65,25 +65,30 @@
                 </div>
                 <div>
                     <label class="block text-[10px] text-gray-400 font-bold uppercase tracking-wider mb-1.5">Secret Content String Instructions:</label>
-                    <textarea name="message" rows="2" class="w-full bg-gray-900 p-3 border border-gray-800 rounded-xl text-xs text-white focus:outline-none focus:border-cyan-500 resize-none" placeholder="Input transmission metadata details..." required></textarea>
+                    <textarea name="message" rows="2" class="w-full bg-gray-900 p-3 border border-gray-800 rounded-xl text-xs text-white focus:outline-none focus:border-cyan-500 resize-none" placeholder="Input transmission details..." required></textarea>
                 </div>
                 <div class="grid grid-cols-2 gap-3">
                     <div>
                         <label class="block text-[10px] text-gray-400 font-bold uppercase tracking-wider mb-1.5">Set Passkey:</label>
-                        <input type="password" name="password" placeholder="Passkey Lock" class="w-full bg-gray-900 p-3 border border-gray-800 rounded-xl text-xs text-white focus:outline-none focus:border-cyan-500" required>
+                        <input type="password" name="password" placeholder="Passkey" class="w-full bg-gray-900 p-3 border border-gray-800 rounded-xl text-xs text-white focus:outline-none focus:border-cyan-500" required>
                     </div>
                     <div>
                         <label class="block text-[10px] text-gray-400 font-bold uppercase tracking-wider mb-1.5">Target Destination:</label>
                         <input type="text" name="country" placeholder="e.g., India" class="w-full bg-gray-900 p-3 border border-gray-800 rounded-xl text-xs text-white focus:outline-none focus:border-cyan-500" required>
                     </div>
                 </div>
+                
                 <div>
-                    <label class="block text-[10px] text-gray-400 font-bold uppercase tracking-wider mb-1.5">Mission Life Window (TTL):</label>
-                    <select name="ttl" class="w-full bg-gray-900 p-3 border border-gray-800 rounded-xl text-xs text-yellow-500 font-bold focus:outline-none cursor-pointer">
-                        <option value="5">5 MINUTES (TACTICAL BURN)</option>
-                        <option value="30" selected>30 MINUTES (STANDARD)</option>
-                    </select>
+                    <label class="block text-[10px] text-gray-400 font-bold uppercase tracking-wider mb-1.5">Custom Lifespan Constraint Window (Max 24h):</label>
+                    <div class="grid grid-cols-3 gap-2">
+                        <input type="number" name="ttl_value" id="ttl-value" value="30" min="1" max="1440" class="col-span-1 bg-gray-900 p-3 border border-gray-800 rounded-xl text-xs text-yellow-400 font-bold text-center focus:outline-none">
+                        <select name="ttl_unit" id="ttl-unit" class="col-span-2 bg-gray-900 p-3 border border-gray-800 rounded-xl text-xs text-yellow-500 font-bold focus:outline-none cursor-pointer">
+                            <option value="minutes" selected>MINUTES</option>
+                            <option value="hours">HOURS (MAX 24)</option>
+                        </select>
+                    </div>
                 </div>
+                
                 <button type="submit" class="w-full bg-cyan-700 hover:bg-cyan-600 text-white font-black py-3.5 rounded-2xl text-xs uppercase tracking-widest transition shadow-lg mt-2">
                     Deploy Payload Asset
                 </button>
@@ -96,8 +101,7 @@
                 <span>▶ 02. Live Intelligence Feed</span>
                 <span class="bg-purple-950/50 text-purple-400 border border-purple-800 px-2 py-0.5 rounded-md text-[9px]">MONITORING</span>
             </h2>
-            <div id="incident-feed-box" class="flex-grow space-y-3 overflow-y-auto max-h-[350px] pr-2">
-                </div>
+            <div id="incident-feed-box" class="flex-grow space-y-3 overflow-y-auto max-h-[350px] pr-2"></div>
         </section>
 
         <section class="terminal-box p-6 rounded-3xl">
@@ -142,8 +146,7 @@
                             <th class="pb-3 text-right pr-2">Operational Action</th>
                         </tr>
                     </thead>
-                    <tbody id="ledger-body">
-                        </tbody>
+                    <tbody id="ledger-body"></tbody>
                 </table>
             </div>
         </section>
@@ -267,6 +270,17 @@
             await fetch(`/api/resolve-breach/${id}`, { method: 'POST' }); 
             fetchStats(); 
         }
+
+        // Handle dynamic frontend unit adjustments constraints
+        document.getElementById('ttl-unit').addEventListener('change', function() {
+            const valInput = document.getElementById('ttl-value');
+            if (this.value === 'hours') {
+                valInput.max = "24";
+                if (parseInt(valInput.value) > 24) valInput.value = "24";
+            } else {
+                valInput.max = "1440";
+            }
+        });
 
         setInterval(fetchStats, 3000);
         fetchStats();
