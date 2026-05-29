@@ -64,7 +64,7 @@ def verify_gateway():
         return redirect(url_for('home'))
     if session.get('verified') is True:
         return redirect(url_for('home'))
-    return render_template('verify.html', username=session['username'])
+  return render_template('verify.html', username=session['username'].upper())
 
 @app.route('/api/auth/signup', methods=['POST'])
 def auth_signup():
