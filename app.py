@@ -28,6 +28,9 @@ incidents_log = [{"id": 1, "time": datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
 incident_id_counter = 1
 session_probe_tracker = {}
 
+# List of global target node simulators
+GLOBAL_TRAFFIC_NODES = ["Tokyo Core Vault", "London Ingress Hub", "Frankfurt Edge Relay", "Bangalore Data Pipeline", "Singapore Mesh Node", "New York Border Gateway"]
+
 # --- DATABASE SETUP ---
 def init_db():
     conn = sqlite3.connect(DB_PATH)
@@ -47,12 +50,18 @@ init_db()
 def hash_password(password):
     return hashlib.sha256(password.encode()).hexdigest()
 
-# --- AUTOMATED BACKGROUND MEMORY CLEANUP LOOP ---
-def auto_shredder_loop():
+# --- AUTOMATED BACKGROUND BACKGROUND ENGINES (SHREDDER & NODE MONITOR) ---
+def advanced_background_daemon():
+    """Background thread handling auto-shredding AND dynamic global node traffic streaming."""
     global incident_id_counter, incidents_log
+    traffic_ticks = 0
+    
     while True:
-        time.sleep(10)
+        time.sleep(5) # Runs a task pulse every 5 seconds
         now = datetime.now()
+        traffic_ticks += 1
+        
+        # TASK 1: SELF-SHRED EXPIRATION WINDOW LOOP
         for token, data in list(global_vault_tracker.items()):
             if data["status"] == "IN_TRANSIT" and now > data["expires_at"]:
                 data["status"] = "EXPIRED / AUTOMATICALLY SHREDDED"
@@ -67,7 +76,22 @@ def auto_shredder_loop():
                     "type": "critical"
                 })
 
-cleanup_thread = threading.Thread(target=auto_shredder_loop, daemon=True)
+        # TASK 2: LIVE SIMULATED NETWORK INFRASTRUCTURE HEARTBEATS
+        if traffic_ticks % 2 == 0: # Every 10 seconds, drop a routine traffic heartbeat log
+            incident_id_counter += 1
+            node_source = random.choice(GLOBAL_TRAFFIC_NODES)
+            packet_size = random.randint(120, 980)
+            
+            incidents_log.append({
+                "id": incident_id_counter,
+                "time": datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
+                "title": f"NODE SYNC: {node_source.upper()}",
+                "desc": f"Routine security handshake passed perfectly. Packet transmission size: {packet_size} KB. Latency optimal.",
+                "type": "info"
+            })
+
+# Start the advanced unified daemon thread
+cleanup_thread = threading.Thread(target=advanced_background_daemon, daemon=True)
 cleanup_thread.start()
 
 # --- AUTHENTICATION ROUTES ---
@@ -264,7 +288,6 @@ def lock_token(tracking_id):
 def export_logs():
     if 'username' not in session or session.get('verified') is not True: return "Unauthorized", 403
     
-    # Generate CSV stream mapping directly out of active incidents lists variables
     si = io.StringIO()
     cw = csv.writer(si)
     cw.writerow(["EVENT_ID", "TIMESTAMP", "ALERT_LEVEL_TYPE", "SECURITY_EVENT_TITLE", "THREAT_METRIC_DESCRIPTION"])
@@ -276,12 +299,12 @@ def export_logs():
     output.write(si.getvalue().encode('utf-8'))
     output.seek(0)
     
-    return send_file(output, as_attachment=True, download_name=f"cloudshield_compliance_audit_{datetime.now().strftime('%Y%m%d')}.csv", mime_type="text/csv")
+    return send_file(output, as_attachment=True, download_name=f"cloudshield_compliance_audit_{datetime.now().strftime('%Y%m%d')}.csv", mimetype="text/csv")
 
 @app.route('/api/stats')
 def system_stats():
     breach_count = len([i for i in incidents_log if i['type'] == 'critical'])
-    health_score = max(100 - (breach_count * 12), 10)
+    health_score = max(100 - (breach_count * 10), 10) # Drops 10 points per threat matrix hit
     
     clean_tracker = {}
     for tid, d in global_vault_tracker.items():
@@ -305,7 +328,7 @@ def system_stats():
     return jsonify({
         "cpu_usage": psutil.cpu_percent(),
         "health_score": health_score,
-        "incidents": incidents_log[::-1][:10],
+        "incidents": incidents_log[::-1][:15], # Increases feed history visualization rows
         "active_tracker": clean_tracker
     })
 
