@@ -6,6 +6,8 @@ import random
 import sqlite3
 import uuid
 import psutil
+import threading
+import time
 from datetime import datetime, timedelta
 from flask import Flask, jsonify, render_template, request, send_file, session, redirect, url_for
 from werkzeug.utils import secure_filename
@@ -23,8 +25,6 @@ os.makedirs(UPLOAD_FOLDER, exist_ok=True)
 global_vault_tracker = {}
 incidents_log = [{"id": 1, "title": "Security Mesh Initialized", "desc": "Adaptive tactical firewalls online.", "type": "info"}]
 incident_id_counter = 1
-
-# Session tracking for Honey-Token Probes
 session_probe_tracker = {}
 
 # --- DATABASE SETUP ---
@@ -45,6 +45,30 @@ init_db()
 
 def hash_password(password):
     return hashlib.sha256(password.encode()).hexdigest()
+
+# --- AUTOMATED BACKGROUND MEMORY CLEANUP LOOP ---
+def auto_shredder_loop():
+    """Background daemon thread running every 10 seconds to automatically clear expired files from RAM."""
+    global incident_id_counter, incidents_log
+    while True:
+        time.sleep(10)
+        now = datetime.now()
+        for token, data in list(global_vault_tracker.items()):
+            if data["status"] == "IN_TRANSIT" and now > data["expires_at"]:
+                data["status"] = "EXPIRED / AUTOMATICALLY SHREDDED"
+                data["file_bytes"] = None  # Completely wipe file from memory heap
+                
+                incident_id_counter += 1
+                incidents_log.append({
+                    "id": incident_id_counter,
+                    "title": "BACKGROUND AUTO-SHRED COMPLETE",
+                    "desc": f"Token {token} exceeded its lifespan matrix window. Payload securely wiped by background daemon thread.",
+                    "type": "critical"
+                })
+
+# Start the background daemon thread
+cleanup_thread = threading.Thread(target=auto_shredder_loop, daemon=True)
+cleanup_thread.start()
 
 # --- AUTHENTICATION ROUTES ---
 @app.route('/')
@@ -121,7 +145,22 @@ def global_send():
     secret_message = request.form['message']
     dest = request.form.get('country', 'Global Node')
     pwd = request.form.get('password', '')
-    ttl = int(request.form.get('ttl', '30'))
+    
+    # 24-HOUR CUSTOM INPUT VALIDATION
+    try:
+        ttl_value = int(request.form.get('ttl_value', '30'))
+        ttl_unit = request.form.get('ttl_unit', 'minutes')
+        
+        if ttl_unit == 'hours':
+            ttl_minutes = ttl_value * 60
+        else:
+            ttl_minutes = ttl_value
+
+        # Cap the limit strictly at 24 hours (1440 minutes)
+        if ttl_minutes < 1 or ttl_minutes > 1440:
+            return jsonify({"error": "Validation Error: Mission lifespan must be between 1 minute and 24 hours."}), 400
+    except ValueError:
+        return jsonify({"error": "Validation Error: Lifespan must be a valid integer numeric value."}), 400
     
     tracking_id = str(uuid.uuid4())[:8].upper()
     file_bytes = file.read()
@@ -136,12 +175,12 @@ def global_send():
         "password": pwd,
         "sender_identity": session['username'],
         "status": "IN_TRANSIT",
-        "expires_at": datetime.now() + timedelta(minutes=ttl),
+        "expires_at": datetime.now() + timedelta(minutes=ttl_minutes),
         "failed_attempts": 0
     }
     
     incident_id_counter += 1
-    incidents_log.append({"id": incident_id_counter, "title": "DEPLOYMENT ACTIVE", "desc": f"Package {tracking_id} routed to {dest}.", "type": "info"})
+    incidents_log.append({"id": incident_id_counter, "title": "DEPLOYMENT ACTIVE", "desc": f"Package {tracking_id} deployed with a {ttl_value} {ttl_unit} self-destruct threshold.", "type": "info"})
     
     return jsonify({"success": True, "tracking_id": tracking_id, "hash": integrity_hash[:16] + "..."})
 
@@ -153,41 +192,38 @@ def global_receive():
     country = request.form.get('country', '').strip().lower()
     user_key = session.get('username', 'anonymous')
 
-    # --- HONEY-TOKEN TRAP ENGINE ACTIVATION ---
     if tracking_id not in global_vault_tracker:
         session_probe_tracker[user_key] = session_probe_tracker.get(user_key, 0) + 1
         incident_id_counter += 1
         
         if session_probe_tracker[user_key] >= 3:
-            incidents_log.append({
-                "id": incident_id_counter, 
-                "title": "HONEY-TOKEN TRAP ENGAGED", 
-                "desc": f"Operator [{user_key}] blocked. Excessive malicious token scanning detected.", 
-                "type": "critical"
-            })
+            incidents_log.append({"id": incident_id_counter, "title": "HONEY-TOKEN TRAP ENGAGED", "desc": f"Operator [{user_key}] blocked due to registry probing.", "type": "critical"})
             return jsonify({"error": "🔒 CRITICAL FIREWALL INTERVENTION: Malicious registry probing detected. Connection quarantined."}), 403
             
-        incidents_log.append({
-            "id": incident_id_counter, 
-            "title": "REGISTRY TOKEN SEARCH MISS", 
-            "desc": f"Invalid database token lookup for string [{tracking_id}]. Threat footprint mapped.", 
-            "type": "critical"
-        })
+        incidents_log.append({"id": incident_id_counter, "title": "REGISTRY TOKEN SEARCH MISS", "desc": f"Invalid database lookup for token [{tracking_id}].", "type": "critical"})
         return jsonify({"error": "Invalid Tracking ID reference tag."}), 404
         
     record = global_vault_tracker[tracking_id]
     
-    if record["status"] != "IN_TRANSIT": return jsonify({"error": "Link Terminated."}), 403
-    if datetime.now() > record["expires_at"]: return jsonify({"error": "Expired."}), 403
+    if "EXPIRED" in record["status"] or record["status"] == "REVOKED":
+        return jsonify({"error": "🔒 ACCESS DENIED: This secure deployment link has expired or been shredded from RAM memory."}), 403
+    if record["status"] != "IN_TRANSIT": 
+        return jsonify({"error": "Link Terminated."}), 403
+        
+    if datetime.now() > record["expires_at"]: 
+        record["status"] = "EXPIRED / TIME-ELAPSED SHREDDED"
+        record["file_bytes"] = None
+        return jsonify({"error": "🔒 LINK EXPIRED: Lifetime boundary reached. Content destroyed."}), 403
     
     if record["password"] != pwd or record["destination"].lower() != country:
         record["failed_attempts"] += 1
         incident_id_counter += 1
         if record["failed_attempts"] >= 3:
             record["status"] = "TERMINATED (BREACH)"
-            incidents_log.append({"id": incident_id_counter, "title": "AUTO-SHRED TRIGGERED", "desc": f"Token {tracking_id} destroyed due to brute force.", "type": "critical"})
+            record["file_bytes"] = None
+            incidents_log.append({"id": incident_id_counter, "title": "AUTO-SHRED TRIGGERED", "desc": f"Token {tracking_id} destroyed due to brute force strikes.", "type": "critical"})
         else:
-            incidents_log.append({"id": incident_id_counter, "title": "INTERCEPTION ATTEMPT", "desc": f"Failed verification on Token {tracking_id}.", "type": "critical"})
+            incidents_log.append({"id": incident_id_counter, "title": "INTERCEPTION ATTEMPT", "desc": f"Failed verification details on Token {tracking_id}.", "type": "critical"})
         return jsonify({"error": "Security Mismatch. Breach Logged."}), 403
 
     record["status"] = "DELIVERED"
@@ -198,20 +234,32 @@ def lock_token(tracking_id):
     tid = tracking_id.upper()
     if tid in global_vault_tracker and global_vault_tracker[tid]["sender_identity"] == session['username']:
         global_vault_tracker[tid]["status"] = "REVOKED"
+        global_vault_tracker[tid]["file_bytes"] = None
         return jsonify({"success": True})
     return jsonify({"success": False}), 400
 
 @app.route('/api/stats')
 def system_stats():
     breach_count = len([i for i in incidents_log if i['type'] == 'critical'])
-    health_score = max(100 - (breach_count * 12), 10) # 12 points drop per threat footprint
+    health_score = max(100 - (breach_count * 12), 10)
     
     clean_tracker = {}
     for tid, d in global_vault_tracker.items():
+        time_left_str = "0m"
+        if d["status"] == "IN_TRANSIT":
+            diff = d["expires_at"] - datetime.now()
+            if diff.total_seconds() > 0:
+                total_mins = int(diff.total_seconds() // 60)
+                if total_mins > 60:
+                    time_left_str = f"{total_mins // 60}h {total_mins % 60}m"
+                else:
+                    time_left_str = f"{total_mins}m {int(diff.total_seconds() % 60)}s"
+            else:
+                time_left_str = "EXPIRED"
+
         clean_tracker[tid] = {
             "filename": d["filename"], "destination": d["destination"], 
-            "status": d["status"], "hash": d["hash"][:12] + "...",
-            "time_left": f"{int((d['expires_at'] - datetime.now()).total_seconds() // 60)}m" if d["status"] == "IN_TRANSIT" else "0m"
+            "status": d["status"], "hash": d["hash"][:12] + "...", "time_left": time_left_str
         }
 
     return jsonify({
@@ -225,10 +273,7 @@ def system_stats():
 def resolve_specific_breach(incident_id):
     global incidents_log, session_probe_tracker
     user_key = session.get('username', 'anonymous')
-    
-    # Clear the probe tracker penalties when patching logs
-    if user_key in session_probe_tracker:
-        session_probe_tracker[user_key] = 0
+    if user_key in session_probe_tracker: session_probe_tracker[user_key] = 0
         
     for inc in incidents_log:
         if inc["id"] == incident_id:
