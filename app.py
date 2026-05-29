@@ -52,8 +52,19 @@ def hash_password(password):
 @app.route('/')
 def home():
     if 'username' in session:
-        return render_template('index.html', username=session['username'])
+        # Check if they completed the secondary verification phase
+        if session.get('verified') is True:
+            return render_template('index.html', username=session['username'])
+        return redirect(url_for('verify_gateway'))
     return render_template('login.html')
+
+@app.route('/verify')
+def verify_gateway():
+    if 'username' not in session:
+        return redirect(url_for('home'))
+    if session.get('verified') is True:
+        return redirect(url_for('home'))
+    return render_template('verify.html', username=session['username'])
 
 @app.route('/api/auth/signup', methods=['POST'])
 def auth_signup():
@@ -64,14 +75,24 @@ def auth_signup():
         return jsonify({"success": False, "error": "Missing registration fields."}), 400
         
     hashed = hash_password(password)
+    
+    conn = sqlite3.connect(DB_PATH)
+    cursor = conn.cursor()
+    
+    # SECURITY RULE: CRITICAL CROSS-PASSWORD DUPLICATION CHECK
+    cursor.execute('SELECT id FROM users WHERE password = ?', (hashed,))
+    duplicate_password = cursor.fetchone()
+    if duplicate_password:
+        conn.close()
+        return jsonify({"success": False, "error": "CRITICAL RISK: This password has already been deployed by another network node user. You must supply a globally unique key string."}), 400
+
     try:
-        conn = sqlite3.connect(DB_PATH)
-        cursor = conn.cursor()
         cursor.execute('INSERT INTO users (username, password) VALUES (?, ?)', (username, hashed))
         conn.commit()
         conn.close()
         return jsonify({"success": True, "message": "Account registered securely! Proceeding to login."})
     except sqlite3.IntegrityError:
+        conn.close()
         return jsonify({"success": False, "error": "Username already deployed to network registry."}), 400
 
 @app.route('/api/auth/login', methods=['POST'])
@@ -88,20 +109,48 @@ def auth_login():
     
     if user:
         session['username'] = username
-        return jsonify({"success": True, "message": "Signature verified. Welcome operator."})
+        session['verified'] = False # Force them into the intermediate validation ring
+        return jsonify({"success": True, "message": "Credentials validated. Initializing verification gateway sequence..."})
     return jsonify({"success": False, "error": "Access Denied: Invalid cryptographic identity keys."}), 401
+
+@app.route('/api/auth/verify-submit', methods=['POST'])
+def auth_verify_submit():
+    if 'username' not in session:
+        return jsonify({"success": False, "error": "Unauthorized"}), 403
+        
+    method = request.form.get('method', '')
+    token = request.form.get('token', '').strip()
+    
+    if not token:
+        return jsonify({"success": False, "error": "Verification token string missing."}), 400
+        
+    # Standard simulation validation key (accepts mock passcode 7721)
+    if token == "7721" or method in ['google', 'apple', 'mac']:
+        session['verified'] = True
+        
+        global incident_id_counter, incidents_log
+        incident_id_counter += 1
+        incidents_log.append({
+            "id": incident_id_counter,
+            "title": "MFA PROTOCOL VERIFIED",
+            "desc": f"Operator [{session['username']}] cleared secondary layer validation via system standard [{method.upper()}].",
+            "type": "info"
+        })
+        return jsonify({"success": True, "message": "Verification confirmed. System access granted."})
+        
+    return jsonify({"success": False, "error": "Verification Failed: Invalid token response signature."}), 400
 
 @app.route('/logout')
 def logout():
     session.pop('username', None)
+    session.pop('verified', None)
     return redirect(url_for('home'))
 
 # --- CORE OPS TERMINALS ---
 @app.route('/api/global-send', methods=['POST'])
 def global_send():
     global incident_id_counter, incidents_log
-    
-    if 'username' not in session:
+    if 'username' not in session or session.get('verified') is not True:
         return jsonify({"error": "Unauthorized Access Attempt Blocked."}), 403
         
     if 'file' not in request.files or 'message' not in request.form:
@@ -149,7 +198,6 @@ def global_send():
 
         file_hash = hashlib.sha256(file_data_bytes).hexdigest()[:16]
         
-        # Calculate lifespan tracking milestones
         timestamp_now = datetime.now()
         expiration_time = timestamp_now + timedelta(minutes=ttl_minutes)
 
@@ -186,7 +234,7 @@ def global_send():
 @app.route('/api/global-receive', methods=['POST'])
 def global_receive():
     global incident_id_counter, incidents_log
-    if 'username' not in session:
+    if 'username' not in session or session.get('verified') is not True:
         return jsonify({"error": "Unauthorized Terminal Request Blocked."}), 403
         
     tracking_id = request.form.get('tracking_id', '').upper()
@@ -198,23 +246,19 @@ def global_receive():
         
     record = global_vault_tracker[tracking_id]
     
-    # 1. KILL-SWITCH LOCKOUT VALIDATION
     if record["status"] == "REVOKED / LOCKED BY SENDER":
         return jsonify({"error": "🔒 ACCESS DENIED: This secure transmission package has been remotely terminated and locked by the sender."}), 403
 
-    # 2. BRUTE-FORCE LOCKOUT CHECK
     if record["status"] == "CONTAINMENT LOCKOUT / TERMINATED":
         return jsonify({"error": "🔒 CRITICAL EXPLOIT LOCKOUT: This node has permanently frozen due to excessive password failures."}), 403
 
-    # 3. TIME EXPIRED PROTECTION
     if datetime.now() > record["expires_at"]:
         record["status"] = "EXPIRED / TIME-ELAPSED SHREDDED"
-        record["file_bytes"] = None  # Wipe contents from RAM heap immediately
+        record["file_bytes"] = None  
         return jsonify({"error": "⌛ ROUTING ERROR: Transmission lifetime has elapsed. Asset file automatically shredded from cloud RAM."}), 403
 
     expected_country = record["destination"].strip().lower()
     
-    # 4. PASSKEY VERIFICATION WITH STRIKE SYSTEM COUNTER
     if record["password"] != provided_password:
         record["failed_attempts"] += 1
         remaining_strikes = 3 - record["failed_attempts"]
@@ -222,7 +266,7 @@ def global_receive():
         
         if record["failed_attempts"] >= 3:
             record["status"] = "CONTAINMENT LOCKOUT / TERMINATED"
-            record["file_bytes"] = None # Free memory block
+            record["file_bytes"] = None
             incidents_log.append({
                 "id": incident_id_counter,
                 "title": "BRUTE FORCE AUTO-SHRED SWITCH TRIGGERED",
@@ -239,7 +283,6 @@ def global_receive():
         })
         return jsonify({"error": f"🔒 PASSKEY ERROR: Access blocked. {remaining_strikes} validation attempts remain before data self-destructs."}), 403
 
-    # 5. GEOLOCATION ROUTING CHECK
     if expected_country != attempt_country:
         incident_id_counter += 1
         incidents_log.append({
@@ -250,41 +293,15 @@ def global_receive():
         })
         return jsonify({"error": "🔒 ROUTING ERROR: Secure deployment package is restricted. Access denied at this endpoint location."}), 403
 
-    # BURN POLICY: Destroy connection immediately after download completes
     record["status"] = "DELIVERED"
     file_stream = io.BytesIO(record["file_bytes"])
     return send_file(file_stream, as_attachment=True, download_name=record["filename"])
 
-@app.route('/api/lock-token/<tracking_id>', methods=['POST'])
-def lock_token(tracking_id):
-    if 'username' not in session:
-        return jsonify({"error": "Unauthorized"}), 403
-        
-    tracking_id = tracking_id.upper()
-    if tracking_id in global_vault_tracker:
-        if global_vault_tracker[tracking_id]["sender_identity"] == session['username']:
-            global_vault_tracker[tracking_id]["status"] = "REVOKED / LOCKED BY SENDER"
-            global_vault_tracker[tracking_id]["file_bytes"] = None
-            
-            global incident_id_counter, incidents_log
-            incident_id_counter += 1
-            incidents_log.append({
-                "id": incident_id_counter,
-                "title": "MANUAL REMOTE LOCK TRIGGERED",
-                "desc": f"Operator [{session['username']}] remotely revoked and destroyed access permissions for Token {tracking_id}.",
-                "type": "info"
-            })
-            return jsonify({"success": True, "message": "Payload securely locked down and revoked."})
-            
-    return jsonify({"success": False, "error": "Unauthorized or Token not found."}), 400
-
 @app.route('/api/stats')
 def system_stats():
     cpu = psutil.cpu_percent(interval=None)
-    
     clean_tracker_summary = {}
     for token, data in list(global_vault_tracker.items()):
-        # Handle passive expiration checks on request sweeps
         if data["status"] == "IN_TRANSIT" and datetime.now() > data["expires_at"]:
             data["status"] = "EXPIRED / TIME-ELAPSED SHREDDED"
             data["file_bytes"] = None
@@ -323,7 +340,6 @@ def resolve_specific_breach(incident_id):
             inc["type"] = "info"
             inc["desc"] = "Threat mitigated. Target link revoked and secure route re-established."
             break
-            
     return jsonify({"success": True, "message": f"Incident #{incident_id} successfully isolated and patched."})
 
 if __name__ == '__main__':
